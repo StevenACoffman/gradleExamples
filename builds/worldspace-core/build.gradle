@@ -1,0 +1,326 @@
+buildscript {
+	ext {
+		grailsVersion = project.grailsVersion
+	}
+	repositories {
+		//jcenter()
+		maven {
+			url "${artifactory_contextUrl}/repo"
+			credentials {
+				username = "${artifactory_user}"
+				password = "${artifactory_password}"
+			}
+		}
+
+		dependencies {
+			classpath 'org.jfrog.buildinfo:build-info-extractor-gradle:4.0.0'
+
+			classpath "org.grails:grails-gradle-plugin:$grailsVersion"
+			classpath "com.bertramlabs.plugins:asset-pipeline-gradle:2.7.2"
+			classpath 'net.saliman:gradle-cobertura-plugin:2.3.0'
+		}
+	}
+}
+plugins {
+	id "com.bertramlabs.asset-pipeline" version "2.7.2"
+	id "io.spring.dependency-management" version "0.5.4.RELEASE"
+	id "com.moowork.grunt" version "0.11"
+}
+version "5.4-SNAPSHOT"
+group "com.deque.server"
+
+apply plugin: "spring-boot"
+apply plugin: "war"
+apply plugin: "asset-pipeline"
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: 'maven-publish'
+apply plugin: 'com.jfrog.artifactory'
+apply plugin: 'cobertura'
+apply plugin: 'jacoco'
+apply plugin: "org.grails.grails-web"
+apply plugin: "org.grails.grails-gsp"
+
+war.archiveName = 'worldspace.war'
+ext.isReleaseVersion = !version.endsWith("SNAPSHOT")
+String publishRepo = isReleaseVersion ? 'libs-release-local' : 'libs-snapshot-local'
+ext {
+	groovyVersion = System.getenv('GROOVY_VERSION') ?: '2.4.5'
+	grailsVersion = project.grailsVersion
+	gradleWrapperVersion = project.gradleWrapperVersion
+}
+println "Using Groovy ${groovyVersion}"
+println "Using Gradle ${GradleVersion.current().getVersion()}"
+println "Building ${archivesBaseName}-${version}"
+println "Publish Repo is ${publishRepo}"
+def compatibilityVersion = 1.8
+sourceCompatibility = compatibilityVersion
+targetCompatibility = compatibilityVersion
+
+assets {
+	minifyJs = false
+	minifyCss = false
+}
+
+repositories {
+
+	//only if gradle called with property like -PuseMavenLocal
+	if (project.hasProperty("useMavenLocal")) {
+		mavenLocal()
+	}
+	maven {
+		url "${artifactory_contextUrl}/repo"
+		credentials {
+			username = "${artifactory_user}"
+			password = "${artifactory_password}"
+		}
+	}
+	//only called if not found in artifactory
+	//jcenter()
+}
+
+dependencyManagement {
+	imports {
+		mavenBom "org.grails:grails-bom:$grailsVersion"
+	}
+	applyMavenExclusions false
+}
+
+dependencies {
+	compile 'org.springframework.boot:spring-boot-starter-logging'
+	compile "org.springframework.boot:spring-boot-starter-actuator"
+	compile 'org.springframework.boot:spring-boot-autoconfigure'
+	compile "org.grails:grails-core"
+	provided "org.springframework.boot:spring-boot-starter-tomcat"
+	compile 'org.grails.plugins:spring-security-core:3.0.3'
+	compile 'org.springframework.security:spring-security-ldap:4.0.3.RELEASE'
+	String springSecurityVersion = '4.0.4.RELEASE'
+	compile "org.springframework.security:spring-security-core:$springSecurityVersion"
+	compile "org.springframework.security:spring-security-web:$springSecurityVersion"
+
+	compile "org.grails:grails-dependencies"
+	compile "org.grails:grails-web-boot"
+	compile 'org.grails.plugins:hibernate'
+	compile "org.grails.plugins:cache"
+	compile "org.hibernate:hibernate-ehcache"
+	compile "org.grails.plugins:scaffolding"
+
+	runtime "org.grails.plugins:asset-pipeline:3.1.1"
+
+	testCompile "org.grails:grails-plugin-testing"
+	testCompile "org.grails.plugins:geb"
+	// Note: It is recommended to update to a more robust driver (Chrome, Firefox etc.)
+	testRuntime 'org.seleniumhq.selenium:selenium-htmlunit-driver:2.44.0'
+
+	console "org.grails:grails-console"
+
+//Worldspace-core  specific
+	compile("com.deque:worldspace-licensing:5.4-SNAPSHOT") {
+		exclude module: "groovy-all"
+	}
+	compile("com.deque:worldspace-commons:5.4-SNAPSHOT") {
+		exclude module: "groovy-all"
+		exclude module: "jackson-core-asl"
+		exclude module: "jackson-mapper-asl"
+	}
+	runtime 'mysql:mysql-connector-java:5.1.38'
+	testCompile 'org.hamcrest:hamcrest-all:1.3'
+
+	compile 'com.amazonaws:aws-java-sdk:1.10.19'
+	compile "org.mozilla:js:14"
+	compile "com.fasterxml.jackson.jaxrs:jackson-jaxrs-base:2.6.2"
+	compile "javax.xml:jaxrpc-api:1.1"
+
+	compile "org.apache.xmlbeans:xmlbeans:2.6.0"
+	//Note: conflicting w3c package was removed from xmlbeans jar, added to artifactory to get downloaded by the above statement and excluding it here
+	compile("org.apache.poi:poi-ooxml:3.10.1") {
+		exclude module: "xmlbeans"
+	}
+	compile "groovy-ldap:groovy-ldap:UNKNOWN"
+	compile("org.apache.directory.api:api-all:1.0.0-M26") {
+		exclude module: "xml-apis"
+		exclude module: "slf4j-api"
+	}
+
+	compile 'org.owasp.esapi:esapi:2.1.0'
+	//compile 'javax.xml:jaxr-api:1.0_04'
+	compile "external:esapiport:2009-26-07"
+	compile("org.forgerock.commons:forgerock-util:1.1.0") {
+		exclude module: "forgerock-parent"
+	}
+
+	compile("org.forgerock.openam:openam-federation-library:11.0.0") {
+		exclude module: "openam-federation"
+		exclude group: "external"
+	}
+	compile "org.forgerock.openam:openam-shared:11.0.0"
+	compile "org.forgerock.openam:openam-wsfederation-schema:11.0.0"
+	compile "org.forgerock.openam:openam-saml2-schema:11.0.0"
+
+	compile "org.forgerock.openam:openam-liberty-schema:11.0.0"
+	compile "org.forgerock.openam:openam-xacml3-schema:11.0.0"
+	compile "external:webservices-rt:2009-29-07"
+	compile 'xerces:xerces:2.4.0'
+	compile "xalan:xalan:2.7.1"
+	compile "xml-resolver:xml-resolver:2.11.0"
+	compile "xml-serializer:xml-serializer:2.11.0"
+	/*plugins*/
+	compile "org.grails.plugins:bubbling:2.1.4"
+	//compile "org.grails.plugins:grails-melody:1.58.0"
+
+	//compile "org.grails.plugins:i18n-templates:1.1.0.1"
+	//compile "org.grails.plugins:jawr:3.8"
+	compile "org.grails.plugins:label:0.2-SNAPSHOT"
+	compile "org.grails.plugins:taggable:2.0.0-SNAPSHOT"
+	compile "org.grails.plugins:quartz:2.0.7"
+
+	//provided "org.grails.plugins:tomcat:7.0.55.3"
+	compile "org.grails.plugins:yui:2.8.2.1"
+	testCompile "org.grails.plugins:clover:4.0.5"
+
+
+}
+
+jacocoTestReport {
+	additionalSourceDirs = files(sourceSets.main.allSource.srcDirs)
+	sourceDirectories = files(sourceSets.main.allSource.srcDirs)
+	classDirectories = files(sourceSets.main.output)
+	executionData = files(jacocoTestReport.executionData)
+	reports {
+		html.enabled = true
+		xml.enabled = true
+		csv.enabled = false
+	}
+}
+//http://jdpgrailsdev.github.io/blog/2014/04/29/gradle_cobertura.html
+//https://github.com/stevesaliman/gradle-cobertura-plugin/blob/master/usage.md
+
+cobertura {
+	//fix cobertura version
+	//https://github.com/stevesaliman/gradle-cobertura-plugin/issues/72
+	//coberturaVersion = '2.1.1'
+	//coberturaVersion = '2.0.3'
+	coverageFormats = ['html', 'xml']
+	coverageIgnoreTrivial = true
+	coverageIgnores = ['org.slf4j.Logger.*']
+	coverageExcludes = ['.*package-info.*', 'net\\.gleske\\.jervis\\.exceptions\\..*']
+
+	//coberturaCheck values 80% (./gradlew coberturaCheck test)
+	//coverageCheckBranchRate = 80
+	//coverageCheckLineRate = 80
+	coverageCheckPackageBranchRate = 50
+	coverageCheckPackageLineRate = 80
+	coverageCheckTotalBranchRate = 50
+	coverageCheckTotalLineRate = 80
+	coverageCheckHaltOnFailure = true
+
+}
+node {
+	// Version of node to use.
+	version = '5.5.0'
+
+	// Version of npm to use.
+	npmVersion = '3.5.3'
+
+	// Base URL for fetching node distributions (change if you have a mirror).
+	distBaseUrl = 'https://nodejs.org/dist'
+
+	// If true, it will download node using above parameters.
+	// If false, it will try to use globally installed node.
+	download = true
+
+	// Set the work directory for unpacking node
+	workDir = file("${project.buildDir}/nodejs")
+
+	// Set the work directory where node_modules should be located
+	nodeModulesDir = file("${project.projectDir}/rules")
+}
+grunt {
+	// Set the directory where Gruntfile.js should be found
+	workDir = file("${project.projectDir}/rules")
+
+	// Whether colors should output on the terminal
+	colors = false
+
+	// Whether output from Grunt should be buffered - useful when running tasks in parallel
+	bufferOutput = false
+}
+
+npm_install {
+	execOverrides {
+		it.workingDir = 'rules'
+	}
+}
+// makes sure on each build that grunt is installed
+grunt_build.dependsOn 'installGrunt'
+
+// processes your package.json before running grunt build
+grunt_build.dependsOn 'npmInstall'
+
+// cp -Rf rules/dist/rules/* src/main/webapp/rules
+task copyRules(type: Copy, dependsOn: grunt_build) {
+	from 'rules/dist/rules'
+	into 'src/main/webapp/rules'
+}
+
+task native2ascii(dependsOn: copyRules) << {
+
+	def resourcesDir = "grails-app/i18n"
+
+	ant.native2ascii(src: "src/main/webapp/rules/locale/ja/", dest: "src/main/webapp/rules/locale/ja/", ext: ".ascii")
+
+	ant.copy(file: "src/main/webapp/rules/locale/ja/optionmessages.ascii", tofile: "$resourcesDir/optionmessages_ja.properties")
+	ant.copy(file: "src/main/webapp/rules/locale/ja/rulemessages.ascii", tofile: "$resourcesDir/rulemessages_ja.properties")
+	ant.copy(file: "src/main/webapp/rules/locale/ja/standardmessages.ascii", tofile: "$resourcesDir/standardmessages_ja.properties")
+	ant.copy(file: "src/main/webapp/rules/locale/en-US/optionmessages.properties", tofile: "$resourcesDir/optionmessages.properties")
+	ant.copy(file: "src/main/webapp/rules/locale/en-US/rulemessages.properties", tofile: "$resourcesDir/rulemessages.properties")
+	ant.copy(file: "src/main/webapp/rules/locale/en-US/standardmessages.properties", tofile: "$resourcesDir/standardmessages.properties")
+
+}
+
+task wrapper(type: Wrapper) {
+	gradleVersion = gradleWrapperVersion
+}
+artifacts {
+	archives war
+}
+
+assetCompile {
+    dependsOn native2ascii
+}
+
+war {
+	exclude "grails/plugins/label/Test*"
+}
+
+
+project.publishing.publications
+		{
+			myPublication(MavenPublication) {
+				//from components.java
+				artifact war
+			}
+		}
+
+artifactoryPublish {
+	dependsOn war
+
+	publications('myPublication')
+
+	clientConfig.publisher.repoKey = publishRepo
+	clientConfig.publisher.username = "${artifactory_user}"
+	clientConfig.publisher.password = "${artifactory_password}"
+}
+
+bootRun {
+	jvmArgs = ['-Dworldspace.config.location=./env/config.groovy']
+}
+
+
+run {
+	systemProperties = System.properties
+}
+
+test {
+	systemProperties = System.properties
+}

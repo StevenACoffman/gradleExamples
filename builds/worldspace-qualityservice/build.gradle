@@ -1,0 +1,91 @@
+buildscript {
+    ext {
+        grailsVersion = project.grailsVersion
+    }
+    repositories {
+        mavenLocal()
+        maven { url "https://repo.grails.org/grails/core" }
+    }
+    dependencies {
+        classpath "org.grails:grails-gradle-plugin:$grailsVersion"
+        classpath "org.grails.plugins:hibernate:4.3.10.5"
+    }
+}
+
+plugins {
+    id "io.spring.dependency-management" version "0.5.4.RELEASE"
+}
+
+description = 'Quality Results Service'
+group = 'com.deque'
+
+apply plugin: "spring-boot"
+apply plugin: "war"
+apply plugin: 'eclipse'
+apply plugin: 'idea'
+apply plugin: "org.grails.grails-web"
+apply plugin: "org.grails.grails-gsp"
+
+ext {
+	groovyVersion = System.getenv('GROOVY_VERSION') ?: '2.4.5'
+    grailsVersion = project.grailsVersion
+    gradleWrapperVersion = project.gradleWrapperVersion
+}
+
+println "Using Groovy ${groovyVersion}"
+println "Using Gradle ${GradleVersion.current().getVersion()}"
+println "Building ${project.name}"
+def compatibilityVersion = 1.8
+sourceCompatibility = compatibilityVersion
+targetCompatibility = compatibilityVersion
+
+repositories {
+    mavenLocal()
+    maven { url "https://repo.grails.org/grails/core" }
+    maven { url "https://repo.grails.org/grails/plugins/" }
+    
+    maven { url "http://builds.dequecloud.com:8088/artifactory/repo1/" }
+    maven { url  "http://builds.dequecloud.com:8088/artifactory/libs-release-local/" }
+}
+
+
+dependencyManagement {
+    imports {
+        mavenBom "org.grails:grails-bom:$grailsVersion"
+    }
+    applyMavenExclusions false
+}
+
+dependencies {
+
+    compile "org.springframework.boot:spring-boot-starter-logging"
+    compile "org.springframework.boot:spring-boot-starter-actuator"
+    compile "org.springframework.boot:spring-boot-autoconfigure"
+    provided "org.springframework.boot:spring-boot-starter-tomcat"
+        
+    compile "org.grails:grails-dependencies"
+    compile "org.grails:grails-web-boot"
+
+    compile "org.hibernate:hibernate-ehcache"
+
+    compile 'org.slf4j:slf4j-api:1.7.7'
+    compile "org.codehaus.jackson:jackson-jaxrs:1.6.2"
+    compile "mysql:mysql-connector-java:5.1.13"
+    compile files('lib/sqljdbc.jar')
+    
+    runtime "org.grails.plugins:hibernate:4.3.10.5"
+    compile "org.grails.plugins:quartz:2.0.0"
+    compile "org.grails.plugins:tomcat:7.0.55.3" 
+
+    testCompile "org.grails:grails-plugin-testing"
+
+    console "org.grails:grails-console"
+}
+
+task wrapper(type: Wrapper) {
+    gradleVersion = gradleWrapperVersion
+}
+
+bootRun {
+    jvmArgs = ["-Dproject.name=${project.name}"]
+}
